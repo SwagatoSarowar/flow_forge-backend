@@ -33,6 +33,12 @@ const userSchema = new mongoose.Schema({
       message: "Please make sure the confirm password is same as the password.",
     },
   },
+  workspaces: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Workspace",
+    },
+  ],
 });
 
 userSchema.pre("save", async function (next) {
