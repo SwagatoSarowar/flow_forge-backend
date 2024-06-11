@@ -7,4 +7,6 @@ router
   .get(workspaceController.getAllWorkspace)
   .post(workspaceController.createWorkspace);
 
+router.route("/:id").get(workspaceController.getWorkspace);
+
 module.exports = router;
