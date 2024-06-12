@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const validator = require("validator");
 const bcrypt = require("bcrypt");
+const crypto = require("crypto");
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -33,16 +34,29 @@ const userSchema = new mongoose.Schema({
       message: "Please make sure the confirm password is same as the password.",
     },
   },
+  passwordChangedAt: {
+    type: Date,
+  },
   workspaces: [
     {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Workspace",
     },
   ],
+  verificationToken: {
+    type: String,
+  },
+  verificationTokenExpires: {
+    type: Date,
+  },
+  isVerified: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 userSchema.pre("save", async function (next) {
-  if (!this.isModified) return;
+  if (!this.isModified("password")) return next();
 
   const hashed = await bcrypt.hash(this.password, 12);
   this.password = hashed;
@@ -50,6 +64,41 @@ userSchema.pre("save", async function (next) {
 
   next();
 });
+
+userSchema.pre("save", function (next) {
+  if (!this.isModified("password") || this.isNew) return next();
+
+  this.passwordChangedAt = Date.now();
+  next();
+});
+
+userSchema.methods.correctPassword = async function (
+  candidatePassword,
+  userPassword
+) {
+  const isCorrect = await bcrypt.compare(candidatePassword, userPassword);
+  return isCorrect;
+};
+
+userSchema.methods.generateEmailVerificationToken = function () {
+  const verificationToken = crypto.randomBytes(32).toString("hex");
+
+  this.verificationToken = crypto
+    .createHash("sha256")
+    .update(verificationToken)
+    .digest("hex");
+
+  this.verificationTokenExpires = Date.now() + 10 * 60 * 1000;
+
+  return verificationToken;
+};
+
+userSchema.methods.isPasswordChangedAfterJWT = function (jwtIssuesAt) {
+  if (this.passwordChangedAt) {
+    return new Date(this.passwordChangedAt).getTime() > jwtIssuesAt * 1000;
+  }
+  return false;
+};
 
 const User = mongoose.model("User", userSchema);
 
